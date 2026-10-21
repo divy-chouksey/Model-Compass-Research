@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the manuscript against the frozen artifact it claims to use.
+"""Verify the manuscript and corrected ablation against the frozen artifact.
 
 Every empirical figure in the paper must be reproducible from
 scratch/arena_corrected.json (run 2026-10-08 / net, n_cohort 47), which is
@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 
 MAIN = 'paper.tex'
 FROZEN = 'scratch/arena_corrected.json'
@@ -22,6 +23,8 @@ ABLATION = 'scratch/ablation_components.json'
 SWING = 'scratch/weights_swing.json'
 
 text = io.open(MAIN, encoding='utf-8').read()
+coauthor_path = Path(__file__).resolve().parents[2] / 'docs' / 'co-author.tex'
+coauthor_text = coauthor_path.read_text(encoding='utf-8') if coauthor_path.is_file() else None
 j = json.load(io.open(FROZEN, encoding='utf-8'))
 run = next(r for r in j['runs'] if r['snapshot'] == '2026-10-08' and r['snapshot_column'] == 'net')
 
@@ -85,16 +88,48 @@ check('disclosure: rounded-ranking defect recorded',
       'ranked the proposed method on its \\emph{rounded} display score' in text)
 check('disclosure: exact ranking is the shipped rule', 'scoreExact' in text)
 check('component-ablation table present', '\\label{tab:component_ablation}' in text)
-check('ablation: penalty result matches the frozen output', '$1.28$' in text)
-
 # ── the ablation numbers the paper quotes must match the ablation artifact ──
 abl = json.load(io.open(ABLATION, encoding='utf-8'))['panels']['frontier']['rows']
 by = {r['method']: r for r in abl}
 check('ablation: full pipeline 0.09', r2(by['Full pipeline (shipped)']['mean_regret']) == '0.09')
-check('ablation: minus penalty 1.28 appears', '$1.28$' in text)
+check('ablation: removing deficit while retaining reward leaves regret unchanged',
+      by['minus quality-deficit penalty (reward retained)']['mean_regret'] == 0.091
+      and by['minus quality-deficit penalty (reward retained)']['changed_pick_tiers'] == 0)
+check('ablation: removing reward while retaining deficit gives 1.28',
+      by['minus frontier reward (deficit retained)']['mean_regret'] == 1.281
+      and by['minus frontier reward (deficit retained)']['changed_pick_tiers'] == 2)
+check('ablation: WSM plus deficit matches unpenalized WSM',
+      by['WSM + deficit penalty']['mean_regret'] == by['WSM (6 coords)']['mean_regret'] == 0.487)
+check('ablation: TOPSIS plus deficit matches unpenalized TOPSIS',
+      by['TOPSIS + deficit penalty']['mean_regret'] == by['TOPSIS (6 coords)']['mean_regret'] == 0.487
+      and by['TOPSIS + deficit penalty']['changed_pick_tiers'] == 0)
+check('ablation: WSM plus both quality factors gives 0.09',
+      by['WSM + deficit and frontier reward']['mean_regret'] == 0.091)
+check('ablation: TOPSIS plus both quality factors remains 0.49',
+      by['TOPSIS + deficit and frontier reward']['mean_regret'] == 0.487)
+check('ablation: paired bootstrap metadata records 2,000 resamples',
+      json.load(io.open(ABLATION, encoding='utf-8')).get('bootstrap', {}).get('reps') == 2000)
+for arch in ('budget', 'balanced'):
+    panel = json.load(io.open(ABLATION, encoding='utf-8'))['panels'][arch]['rows']
+    methods = {row['method']: row for row in panel}
+    check(f'ablation: {arch} WSM penalty changes no picks',
+          methods['WSM + deficit penalty']['changed_pick_tiers'] == 0)
+    check(f'ablation: {arch} TOPSIS penalty changes no picks',
+          methods['TOPSIS + deficit penalty']['changed_pick_tiers'] == 0)
 check('ablation: six-coordinate baselines match triplet',
       by['WSM (6 coords)']['mean_regret'] == by['WSM (triplet)']['mean_regret'] == 0.487)
 check('ablation: parity claim stated', 'These coordinates move no tier\'s pick in this panel' in text)
+
+if coauthor_text is not None:
+    check('co-author draft distinguishes deficit factor from frontier reward',
+          'removing the deficit factor leaves mean regret at $0.09$' in coauthor_text
+          and 'removing the frontier reward raises it to $1.28$' in coauthor_text)
+    check('co-author draft reports matched WSM and TOPSIS penalties',
+          'WSM + deficit' in coauthor_text and 'TOPSIS + deficit' in coauthor_text)
+    check('co-author draft reports the cross-intent pick result',
+          'adding the production deficit factor to WSM or TOPSIS changes no tier picks' in coauthor_text)
+    check('co-author draft has no obsolete penalty attribution',
+          'removing the deficit penalty raises mean regret' not in coauthor_text.lower())
 
 sw = json.load(io.open(SWING, encoding='utf-8'))
 check('swing: cohort size matches the frozen cohort', sw['cohort'] == run['n_cohort'])

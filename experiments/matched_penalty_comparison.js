@@ -10,16 +10,18 @@
  * by scratch/arena_corrected.js, so the "Full pipeline" row here is comparable
  * to the Proposed row of the manuscript's validation table.
  *
- * Variants are computed by the SAME arithmetic as server/lib/scoring.js with one
- * term disabled, so the difference between two rows is attributable to that
- * term and to nothing else.
+ * The proposed-score ablations separate the below-threshold deficit multiplier
+ * from the frontier reward. Matched WSM/TOPSIS variants apply the production
+ * quality multiplier to the same six-coordinate baseline score. The shared
+ * factor is reported both as deficit-only and, for frontier, deficit plus reward.
  *
- * Run: node scratch/ablation_components.js
+ * Run: node experiments/matched_penalty_comparison.js
  */
 import '../src/engine/env.js'
 import { readRegistry } from '../src/engine/registry-store.js'
 import { taskQuality, capabilityFit, sourceTrustFactor, computeFinalScore } from '../src/engine/scoring.js'
 import { computeBenchmarkBounds, evaluateModelCapabilities } from '../src/engine/benchmarks.js'
+import { qualityFactor } from '../src/quality_penalty.js'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { pinnedIntent } from './pinned-intents.js'
 
@@ -41,6 +43,14 @@ function spearman(x, y) {
   for (let i = 0; i < rx.length; i++) { n += (rx[i] - mx) * (ry[i] - my); dx += (rx[i] - mx) ** 2; dy += (ry[i] - my) ** 2 }
   return n / Math.sqrt(dx * dy)
 }
+function mulberry32(seed) {
+  return () => {
+    let t = seed += 0x6D2B79F5
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
 function topsis(X, w) {
   const wSum = w.reduce((a, b) => a + b, 0) || 1
   const nrm = X[0].map((_, j) => Math.sqrt(X.reduce((t, r) => t + r[j] * r[j], 0)))
@@ -54,9 +64,21 @@ function topsis(X, w) {
   })
 }
 
-// ── the shipped score, with switchable components ───────────────────────────
+// ── the shipped score, with independently switchable components ─────────────
 const MIN_SCORE = 0.08
 const softCeiling = (s) => (s <= 86 ? s : 86 + 13.4 * (1 - Math.exp(-(s - 86) / 13.4)))
+
+function qualityFactors(q, archetype, { deficitOff = false, rewardOff = false } = {}) {
+  let deficit = 1
+  let reward = 1
+  if (archetype === 'frontier') {
+    if (q < 0.92 && !deficitOff) deficit = qualityFactor(q, archetype)
+    if (q >= 0.92 && !rewardOff) reward = qualityFactor(q, archetype)
+  } else if (q < 0.70 && !deficitOff) {
+    deficit = qualityFactor(q, archetype)
+  }
+  return { deficit, reward, combined: deficit * reward }
+}
 
 function score(model, targetCategory, weights, opts, off = {}) {
   const weightSum = Object.values(weights).reduce((a, b) => a + b, 0)
@@ -73,15 +95,11 @@ function score(model, targetCategory, weights, opts, off = {}) {
   const trust = off.trust ? 1 : sourceTrustFactor(model)
   let scaled = base * fit * conf * trust * 100
   const q = model.metrics?.quality ?? 0
-  const archetype = opts.archetype
-  if (off.penalty) {
-    // no deficit penalty and no frontier reward
-  } else if (archetype === 'frontier' || opts.qualityFlagged) {
-    if (q < 0.92) scaled *= 1 / (1 + 3.0 * Math.pow(0.92 - q, 1.2))
-    else scaled *= 1 + 0.25 * Math.pow(Math.max(0, (q - 0.92) / 0.08), 1.5)
-  } else if (q < 0.70) {
-    scaled *= 1 / (1 + 1.8 * Math.log(1 + 3.5 * (0.70 - q)))
-  }
+  const factors = qualityFactors(q, opts.archetype || (opts.qualityFlagged ? 'frontier' : ''), {
+    deficitOff: off.deficit,
+    rewardOff: off.reward,
+  })
+  scaled *= factors.combined
   if (off.bonus) { /* specialist bonus disabled */ } else if (opts.isCoding && targetCategory === 'general') {
     const isCodeSpecialist = model.caps?.isCodeSpecialist || (model.secondaryUseCases || []).includes('code') || model.category === 'code'
     const isReasoning = model.caps?.isReasoning
@@ -132,13 +150,24 @@ for (const { model, rows: rs } of groups.values()) {
 const priced = cohort.filter((c) => Number.isFinite(c.cost))
 const net = cohort.map((c) => c.net)
 
-const out = { cohort: cohort.length, priced: priced.length, panels: {} }
+const out = {
+  cohort: cohort.length,
+  priced: priced.length,
+  design: {
+    baselines: 'six benefit-oriented normalized coordinates and the same pinned intent weights as the proposed score',
+    matchedPenalty: 'baseline raw score multiplied by the production archetype-specific quality-deficit factor before ranking',
+    frontierReward: 'reported separately; an additional combined-factor variant applies both deficit and frontier reward',
+    tiers: BUDGETS,
+    outcome: 'Agent Arena headline net-improvement; six equally weighted nested budget tiers',
+  },
+  panels: {},
+}
 console.log(`FROZEN cohort: ${cohort.length} models, ${priced.length} priced`)
 
 // Faithfulness check: the reimplementation with every component ON must agree
 // with the shipped computeFinalScore().exact to floating-point noise.
 {
-  const { recommendModels } = await import('../src/engine/scoring.js')
+  const { recommendModels } = await import('../server/lib/scoring.js')
   let maxd = 0
   for (const prompt of Object.values(PROMPTS)) {
     const { analysis } = await pinnedIntent(prompt)
@@ -155,7 +184,7 @@ console.log(`FROZEN cohort: ${cohort.length} models, ${priced.length} priced`)
 }
 
 for (const [arch, prompt] of Object.entries(PROMPTS)) {
-  const { recommendModels } = await import('../src/engine/scoring.js')
+  const { recommendModels } = await import('../server/lib/scoring.js')
   const { analysis } = await pinnedIntent(prompt)
   const w = analysis.weights, category = analysis.targetCategory
   const opts = { archetype: analysis.archetype, isCoding: Boolean(analysis.isCoding), qualityFlagged: analysis.archetype === 'frontier' }
@@ -163,18 +192,30 @@ for (const [arch, prompt] of Object.entries(PROMPTS)) {
   const NW6 = W6.map((v) => v / (W6.reduce((a, b) => a + b, 0) || 1))
   const K = Object.keys(w)
   const X6 = cohort.map((c) => [c.q, c.a, c.s, c.ctx, c.priv, c.avail])
+  const qualityAdjusted = (scores, kind) => scores.map((s, i) => {
+    const factors = qualityFactors(cohort[i].q, arch)
+    return s * (kind === 'deficit' ? factors.deficit : factors.combined)
+  })
+  const wsm6 = cohort.map((c) => K.reduce((t, k, i) => t + NW6[i] * [c.q, c.a, c.s, c.ctx, c.priv, c.avail][i], 0))
+  const topsis6 = topsis(X6, W6)
 
   const variants = {
     'Full pipeline (shipped)': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts)),
-    'minus deficit penalty': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { penalty: true })),
+    'minus quality-deficit penalty (reward retained)': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { deficit: true })),
+    'minus frontier reward (deficit retained)': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { reward: true })),
+    'minus deficit and frontier reward': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { deficit: true, reward: true })),
     'minus confidence discount': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { confidence: true })),
     'minus category fit': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { fit: true })),
     'minus source trust': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { trust: true })),
     'minus specialist bonus': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { bonus: true })),
     'linear aggregator': cohort.map((c) => score({ ...c.raw, metrics: { ...c.raw.metrics, quality: c.q } }, category, w, opts, { linear: true })),
     // baselines given the SAME six coordinates and the SAME weights
-    'WSM (6 coords)': cohort.map((c) => K.reduce((t, k, i) => t + NW6[i] * [c.q, c.a, c.s, c.ctx, c.priv, c.avail][i], 0)),
-    'TOPSIS (6 coords)': topsis(X6, W6),
+    'WSM (6 coords)': wsm6,
+    'WSM + deficit penalty': qualityAdjusted(wsm6, 'deficit'),
+    'WSM + deficit and frontier reward': qualityAdjusted(wsm6, 'combined'),
+    'TOPSIS (6 coords)': topsis6,
+    'TOPSIS + deficit penalty': qualityAdjusted(topsis6, 'deficit'),
+    'TOPSIS + deficit and frontier reward': qualityAdjusted(topsis6, 'combined'),
     'Cobb-Douglas (6 coords)': cohort.map((c) => K.reduce((t, k, i) => t * Math.pow(Math.max([c.q, c.a, c.s, c.ctx, c.priv, c.avail][i], 0.05), NW6[i]), 1)),
     'CES only (6 coords)': cohort.map((c) => { const r = K.reduce((t, k, i) => t + NW6[i] * Math.sqrt([c.q, c.a, c.s, c.ctx, c.priv, c.avail][i]), 0); return r * r }),
     // the baselines as the manuscript actually runs them (triplet only)
@@ -184,9 +225,11 @@ for (const [arch, prompt] of Object.entries(PROMPTS)) {
 
   const keys = Object.keys(variants)
   const rowsOut = []
+  const pickedByMethod = {}
   for (const k of keys) {
     const v = variants[k]
-    let regSum = 0, worst = -Infinity, hits = 0, tiers = 0
+    let regSum = 0, worst = -Infinity, hits = 0, tiers = 0, pickedNets = [], oracleNets = []
+    const pickedIndices = []
     for (const B of BUDGETS) {
       const elig = cohort.map((c, i) => i).filter((i) => Number.isFinite(cohort[i].cost) && cohort[i].cost <= B)
       if (elig.length < 3) continue
@@ -195,16 +238,62 @@ for (const [arch, prompt] of Object.entries(PROMPTS)) {
       for (const i of elig) if (v[i] > best) { best = v[i]; pick = i }
       const r = oracle - net[pick]
       regSum += r; if (r > worst) worst = r; if (r <= 1e-9) hits++; tiers++
+      pickedNets.push(net[pick]); oracleNets.push(oracle)
+      pickedIndices.push(pick)
     }
     const topIdx = (x) => x.map((val, i) => [val, i]).sort((a, b) => b[0] - a[0]).slice(0, 3).map((p) => p[1])
     const outTop = new Set(topIdx(net))
     const top3 = topIdx(v).filter((i) => outTop.has(i)).length
-    rowsOut.push({ method: k, mean_regret: +(regSum / tiers).toFixed(3), worst: +worst.toFixed(3), oracle_hits: `${hits}/${tiers}`, spearman: +spearman(v, net).toFixed(3), top3: `${top3}/3` })
+    rowsOut.push({ method: k, mean_regret: +(regSum / tiers).toFixed(3), worst: +worst.toFixed(3), value_captured: +(MEAN(pickedNets) / MEAN(oracleNets)).toFixed(3), oracle_hits: `${hits}/${tiers}`, spearman: +spearman(v, net).toFixed(3), top3: `${top3}/3` })
+    pickedByMethod[k] = pickedIndices
   }
+  for (const row of rowsOut) {
+    let ref = 'Full pipeline (shipped)'
+    if (row.method.startsWith('WSM +')) ref = 'WSM (6 coords)'
+    if (row.method.startsWith('TOPSIS +')) ref = 'TOPSIS (6 coords)'
+    row.pick_comparison_reference = ref
+    row.changed_pick_tiers = pickedByMethod[row.method].filter((pick, i) => pick !== pickedByMethod[ref][i]).length
+  }
+  // Paired model bootstrap: resample the same model indices for every method,
+  // recompute each tier oracle, then store regret differences vs the full score.
+  const REPS = 2000
+  const random = mulberry32(20261020)
+  const deltaBoot = Object.fromEntries(keys.map((k) => [k, []]))
+  for (let rep = 0; rep < REPS; rep++) {
+    const idx = Array.from({ length: cohort.length }, () => Math.floor(random() * cohort.length))
+    const methodRegs = Object.fromEntries(keys.map((k) => [k, []]))
+    for (const B of BUDGETS) {
+      const eligible = idx.map((source, pos) => ({ source, pos })).filter(({ source }) => Number.isFinite(cohort[source].cost) && cohort[source].cost <= B)
+      if (eligible.length < 3) continue
+      const oracle = Math.max(...eligible.map(({ source }) => net[source]))
+      for (const k of keys) {
+        const v = variants[k]
+        let pick = eligible[0].source, best = -Infinity
+        for (const { source, pos } of eligible) {
+          if (v[source] > best) { best = v[source]; pick = source }
+        }
+        methodRegs[k].push(oracle - net[pick])
+      }
+    }
+    const fullRegret = MEAN(methodRegs['Full pipeline (shipped)'])
+    for (const k of keys) deltaBoot[k].push(MEAN(methodRegs[k]) - fullRegret)
+  }
+  const quantile = (values, p) => {
+    const sorted = values.filter(Number.isFinite).sort((a, b) => a - b)
+    return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(p * (sorted.length - 1))))]
+  }
+  for (const row of rowsOut) {
+    row.delta_regret_vs_full = +(row.mean_regret - rowsOut[0].mean_regret).toFixed(3)
+    row.paired_delta_ci_vs_full = [
+      +quantile(deltaBoot[row.method], 0.025).toFixed(3),
+      +quantile(deltaBoot[row.method], 0.975).toFixed(3),
+    ]
+  }
+  out.bootstrap = { reps: REPS, seed: 20261020, unit: 'models; paired across methods; tier oracle recomputed in each resample' }
   console.log(`\n===== ${arch.toUpperCase()}  weights ${JSON.stringify(w)}`)
-  console.log('method                        mean   worst  hits   rho  top3')
+  console.log('method                                       mean   worst  value  hits   rho  top3  pickΔ  delta[95% CI]')
   for (const r of rowsOut) {
-    console.log(`  ${r.method.padEnd(28)} ${String(r.mean_regret).padStart(6)} ${String(r.worst).padStart(6)} ${r.oracle_hits.padStart(5)} ${String(r.spearman).padStart(6)} ${r.top3}`)
+    console.log(`  ${r.method.padEnd(42)} ${String(r.mean_regret).padStart(6)} ${String(r.worst).padStart(6)} ${String(r.value_captured).padStart(6)} ${r.oracle_hits.padStart(5)} ${String(r.spearman).padStart(6)} ${r.top3.padEnd(4)} ${String(r.changed_pick_tiers).padStart(5)} [${r.paired_delta_ci_vs_full.join(', ')}]`)
   }
   out.panels[arch] = { weights: w, rows: rowsOut }
 }
