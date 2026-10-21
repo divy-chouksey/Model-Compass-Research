@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""Verify the manuscript and corrected ablation against the frozen artifact.
+"""Verify manuscript claims and computed result artifacts against each other.
 
 Every empirical figure in the paper must be reproducible from
-scratch/arena_corrected.json (run 2026-10-08 / net, n_cohort 47), which is
-produced by scratch/arena_corrected.js on the frozen registry revision. This
+scratch/arena_corrected.json (run 2026-10-08 / net, n_cohort 47), produced by
+experiments/frontier_evaluation.js on the frozen registry revision. This
 checker reads that JSON, recomputes the values the tables quote, and asserts
-each one appears in the manuscript -- and that the retracted figures do not.
+each one appears in the manuscript -- and that retracted figures do not.
 
-Run: python scratch/verify_frozen_panels.py
+Run from the archive root: python experiments/statistical_validation.py
 """
 import io
-import json
 import json
 import os
 import re
 import sys
-from pathlib import Path
 
 MAIN = 'paper.tex'
 FROZEN = 'scratch/arena_corrected.json'
@@ -23,8 +21,6 @@ ABLATION = 'scratch/ablation_components.json'
 SWING = 'scratch/weights_swing.json'
 
 text = io.open(MAIN, encoding='utf-8').read()
-coauthor_path = Path(__file__).resolve().parents[2] / 'docs' / 'co-author.tex'
-coauthor_text = coauthor_path.read_text(encoding='utf-8') if coauthor_path.is_file() else None
 j = json.load(io.open(FROZEN, encoding='utf-8'))
 run = next(r for r in j['runs'] if r['snapshot'] == '2026-10-08' and r['snapshot_column'] == 'net')
 
@@ -119,17 +115,20 @@ for arch in ('budget', 'balanced'):
 check('ablation: six-coordinate baselines match triplet',
       by['WSM (6 coords)']['mean_regret'] == by['WSM (triplet)']['mean_regret'] == 0.487)
 check('ablation: parity claim stated', 'These coordinates move no tier\'s pick in this panel' in text)
-
-if coauthor_text is not None:
-    check('co-author draft distinguishes deficit factor from frontier reward',
-          'removing the deficit factor leaves mean regret at $0.09$' in coauthor_text
-          and 'removing the frontier reward raises it to $1.28$' in coauthor_text)
-    check('co-author draft reports matched WSM and TOPSIS penalties',
-          'WSM + deficit' in coauthor_text and 'TOPSIS + deficit' in coauthor_text)
-    check('co-author draft reports the cross-intent pick result',
-          'adding the production deficit factor to WSM or TOPSIS changes no tier picks' in coauthor_text)
-    check('co-author draft has no obsolete penalty attribution',
-          'removing the deficit penalty raises mean regret' not in coauthor_text.lower())
+check('paper: linear-aggregator top-three overlap matches computed artifact',
+      'linear aggregator                  & 0.09 & 0.27 & 0.989 & $0.00\\;[0.00,0.00]$ & 0.817 & 2/3' in text)
+check('paper: no stale claim that linear aggregation lowers overlap',
+      'linear-aggregator ablation has the same mean regret ($0.09$) but lower shortlist overlap' not in text)
+check('paper: prose reports the linear aggregator retains 2/3 top-three overlap',
+      'Replacing the power mean with a linear aggregator leaves mean regret unchanged and retains top-three overlap at $2/3$' in text)
+check('paper: no stale attribution to deficit-factor removal',
+      'removing the deficit penalty raises mean regret' not in text.lower())
+check('paper: matched WSM/TOPSIS comparison is not presented as future work',
+      'matched-penalty WSM/TOPSIS comparison and simple cost-feasible rules are needed' not in text)
+check('paper: states remaining fully matched comparisons are needed',
+      'Further fully factor-matched comparisons, incorporating category fit, confidence discounting, source trust, and coding-specialist adjustments, together with simple cost-feasible decision rules, are needed before attributing improvements to the aggregation design.' in text)
+check('paper: conclusion lists fully matched baselines as future work',
+      'Future work includes temporal validation, direct pairwise preference studies involving budget- and balanced-intent users, validation of shared-utility weights against observed user choices, and fully factor-matched baseline comparisons.' in text)
 
 sw = json.load(io.open(SWING, encoding='utf-8'))
 check('swing: cohort size matches the frozen cohort', sw['cohort'] == run['n_cohort'])

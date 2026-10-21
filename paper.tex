@@ -57,7 +57,7 @@
 
 \affil*[1]{\orgdiv{Department of CSE (AI \& ML)}, \orgname{RV Institute of Technology \& Management}, \orgaddress{\city{Bangalore}, \country{India}}}
 
-\abstract{Selecting a foundation model requires balancing quality, cost, latency, context, privacy, and availability, yet public leaderboards rank on a single dimension and linear weighted sums let cheap or fast models offset inadequate quality. We present a recommendation pipeline combining hard feasibility constraints, Pareto stratification, constant-elasticity-of-substitution (CES) aggregation, soft-knee percentile normalization, and a continuous quality-deficit penalty in place of threshold cliffs. We prove monotonicity and, under stated factor bounds, a quality-conditional score ceiling and properties of a bounded display mapping; we also show that Pareto dominance over the efficiency triplet implies score order only under a stated condition, with a counterexample outside it. On a frozen 47-model Agent Arena cohort, regret is measured against the leaderboard's net-improvement outcome, which does not price cost or latency. Under capability-first intent, the pipeline has the lowest point-estimate mean regret among integrative baselines (0.09 versus 0.49), although paired intervals include zero. Ablation associates this result with the deficit penalty rather than the CES aggregator: removing the penalty raises regret to 1.28, whereas a linear aggregator leaves regret unchanged but reduces top-three overlap with the outcome from 2/3 to 1/3. Under budget and balanced intents the pipeline trails several baselines; these are limitations because the outcome cannot adjudicate cost-sensitive preferences. A secondary common-utility analysis applies shared cost caps and an explicit utility to all methods, using weights that have not been validated against user choices. The results show outcome alignment on one cohort, not user-intent satisfaction.}
+\abstract{Selecting a foundation model requires balancing quality, cost, latency, context, privacy, and availability, yet public leaderboards rank on a single dimension and linear weighted sums let cheap or fast models offset inadequate quality. We present a recommendation pipeline combining hard feasibility constraints, Pareto stratification, constant-elasticity-of-substitution (CES) aggregation, soft-knee percentile normalization, and a continuous quality-deficit penalty in place of threshold cliffs. We prove monotonicity and, under stated factor bounds, a quality-conditional score ceiling and properties of a bounded display mapping; we also show that Pareto dominance over the efficiency triplet implies score order only under a stated condition, with a counterexample outside it. On a frozen 47-model Agent Arena cohort, regret is measured against the leaderboard's net-improvement outcome, which does not price cost or latency. Under capability-first intent, the pipeline has the lowest point-estimate mean regret among the original unpenalized integrative baselines (0.09 versus 0.49), although paired intervals include zero. Corrected ablation leaves regret unchanged when the deficit factor is removed, but it rises to 1.28 when the frontier reward is removed (paired difference interval 0 to 2.49). Adding the same deficit factor and frontier reward to WSM also yields 0.09; adding the deficit factor alone to WSM or TOPSIS leaves regret at 0.49. Replacing CES with a linear aggregator leaves mean regret unchanged and also retains top-three overlap of 2/3. Under budget and balanced intents the pipeline trails several baselines; these are limitations because the outcome cannot adjudicate cost-sensitive preferences. A secondary common-utility analysis applies shared cost caps and an explicit utility to all methods, using weights that have not been validated against user choices. The results show outcome alignment on one cohort, not user-intent satisfaction.}
 
 \keywords{Foundation models, quality-deficit penalty, Constant elasticity of substitution, Multi-attribute utility theory, Pareto optimality, recommendation systems, Model selection}
 
@@ -88,7 +88,7 @@ Rather than treating attributes as linearly substitutable, the method aggregates
   \item A CES weighted-power-mean formulation ($U_\rho$, default $\rho=0.5$) with a floored Cobb--Douglas endpoint ($\varepsilon=0.05$), combined multiplicatively with category fit, source trust, and a quadratic confidence discount.
   \item A continuous quality-deficit penalty, $C^1$ for the frontier archetype and $C^0$ for balanced, budget, and speed archetypes; a convex frontier reward; and a $C^1$ asymptotic display ceiling that bounds scores to $[0,99.4)$ while preserving rank monotonicity.
   \item Formal results (Propositions~1--5), each with its scope condition. Proposition~2 is conditional: Pareto dominance implies weak score order only when every positively weighted coordinate lies in the efficiency triplet; a strict score gain is guaranteed when a strictly improved triplet coordinate has positive weight. Section~\ref{subsec:pareto_scope} gives a counterexample outside the condition.
-  \item A frozen-cohort evaluation against Agent Arena's cost-blind headline outcome. Under capability-first intent, the pipeline has the lowest point-estimate mean regret among integrative rules ($0.09$ versus $0.49$), although paired intervals include zero. Ablation associates this result with the deficit penalty rather than the CES aggregator. Budget and balanced results are limitations because the outcome proxy cannot adjudicate cost-sensitive preferences. A shared-utility analysis reports cost, quality, utility regret, and Pareto dominance under common constraints; whole-catalogue coverage addresses the stratum unavailable to outcome-based panels.
+  \item A frozen-cohort evaluation against Agent Arena's cost-blind headline outcome. Under capability-first intent, the pipeline has mean regret $0.09$ versus $0.49$ for the original unpenalized integrative baselines, although paired intervals include zero; WSM with both matched quality factors also attains $0.09$. Corrected component ablation distinguishes the deficit factor from the frontier reward, and matched WSM/TOPSIS variants test the shared quality factor. Budget and balanced results are limitations because the outcome proxy cannot adjudicate cost-sensitive preferences. A shared-utility analysis reports cost, quality, utility regret, and Pareto dominance under common constraints; whole-catalogue coverage addresses the stratum unavailable to outcome-based panels.
 \end{enumerate}
 
 \textbf{Framing Note.} The core aggregator is a weighted power mean, i.e., a member of the CES family. Cobb--Douglas represents its $\rho \to 0$ limiting member, while the multiplicative coupling with category fit and trust factors is Cobb--Douglas in functional form. We evaluate both the Cobb--Douglas endpoint (with regularization floor $\varepsilon = 0.05$, since the pure unfloored product vanishes when any metric is missing) and the default $\rho = 0.5$. Crucially, the non-compensatory protection is established by the smooth deficit penalty (Proposition~\ref{prop:ceiling}), whereas absolute exclusions are enforced strictly by the pre-scoring constraint filter.
@@ -127,7 +127,21 @@ where $\rho \in (-\infty, 1]$ governs the elasticity of substitution \cite{hardy
   \item As $\rho \to 0$, $U_\rho$ converges asymptotically to the Cobb--Douglas geometric mean $\prod x_k^{\bar{w}_k}$ ($\sigma = 1$).
   \item As $\rho \to -\infty$, $U_\rho$ converges to the Leontief minimum function $\min_k \{x_k\}$ ($\sigma = 0$).
 \end{itemize}
-For $\rho \in (0, 1)$, the aggregator is strictly concave, penalizes dimensional imbalances, stays positive even when an attribute is zero, and avoids sparse metric collapse. By adopting $\rho = 0.5$ (the square-root mean, $\sigma = 2.0$) as our default, we obtain a strictly concave aggregator that is more compensatory than Cobb--Douglas but less compensatory than the linear mean. Any stronger resistance to a low-quality coordinate comes from the separate deficit penalty and feasibility filter.
+For $\rho \in (0,1)$, the CES aggregator is concave and
+penalizes dimensional imbalances relative to a weighted
+arithmetic mean. Unlike the unfloored Cobb--Douglas
+formulation, it remains well-defined when an attribute
+is zero and retains positive utility provided at least
+one positively weighted attribute is nonzero. By
+adopting $\rho = 0.5$ (the square-root power mean,
+$\sigma = 2.0$) as our default, we obtain a concave
+aggregator that permits greater substitutability than
+Cobb--Douglas ($\sigma = 1$), but less than the linear
+weighted mean. Stronger protection against sub-threshold
+task quality is provided by the separate continuous
+quality-deficit penalty, while absolute feasibility
+requirements are enforced through pre-scoring hard
+constraint filtering.
 
 \subsection{Foundation Model Telemetry, Leaderboards, and Dynamic Routers}
 
@@ -160,6 +174,22 @@ S(\pi(1)) \ge S(\pi(2)) \ge \dots \ge S(\pi(|\mathcal{M}^*|)).
 \end{equation}
 
 \section{The Decision-Analytic Scoring Methodology}\label{sec:methodology}
+
+\subsection{Overview of the Proposed Recommendation Pipeline}\label{subsec:pipeline_overview}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{diagram.png}
+\caption{Architecture of the proposed quality-guarded multi-attribute foundation model recommendation pipeline. Natural-language intent parsing identifies task priorities and operational constraints, while an integrated model registry supplies candidate attributes. Hard feasibility filtering, soft-knee normalization, and task-quality synthesis precede Pareto stratification over quality, affordability, and inference speed. The six-dimensional CES utility is combined with multiplicative scoring adjustments, archetype-dependent quality factors, and an asymptotic display ceiling to produce ranked recommendations. Pareto membership is retained as explanatory metadata and does not directly determine score order.}\label{fig:pipeline}
+\end{figure}
+
+Figure~\ref{fig:pipeline} illustrates the architecture of the proposed quality-guarded multi-attribute foundation model recommendation pipeline. The process begins with a natural-language user request, which is interpreted to identify the target task category, operational constraints, and attribute priorities. The intent-parsing component determines the corresponding operational archetype---frontier, balanced, budget, or speed---and generates a weight vector for six evaluation dimensions: task quality, affordability, inference speed, context capacity, privacy, and availability.
+
+Candidate models are retrieved from the integrated model registry, which incorporates metadata and benchmark observations from OpenRouter, Hugging Face, and Artificial Analysis. Hard feasibility constraints are applied to exclude candidates that violate explicitly specified requirements. The remaining models are evaluated using normalized telemetry attributes, where soft-knee percentile normalization reduces sensitivity to outliers while preserving discrimination among high-performing models. Task-specific quality is synthesized from available domain-specific and general capability measurements.
+
+Pareto stratification identifies non-dominated models using the quality--affordability--speed efficiency triplet. Importantly, Pareto membership serves as explanatory metadata rather than as a mandatory ranking or elimination criterion. Subsequently, the six normalized attributes are aggregated through a weighted constant-elasticity-of-substitution (CES) utility function, with the default parameter set to $\rho = 0.5$. The resulting utility is adjusted using category fit, source trust, confidence discounting, and task-specific specialization factors.
+
+A continuous quality-deficit penalty discourages models with insufficient task proficiency, while the frontier archetype additionally incorporates a quality-dependent reward. Finally, a continuously differentiable asymptotic ceiling maps the adjusted score to a bounded scale below 99.4 without introducing upper-end ranking ties. The pipeline produces an ordered list of feasible models accompanied by their evaluation scores, attribute information, and Pareto membership, thereby supporting transparent, task-aware model selection.
 
 The recommendation methodology operates as an eight-stage pipeline:
 \begin{enumerate}
@@ -219,9 +249,21 @@ $P_{95}$ (Knee Point) & 95th cohort percentile; the linear limb spans $[P_5, P_{
 This formulation possesses four key mathematical properties:
 \begin{enumerate}
   \item \textbf{Outlier Resistance:} The central 90\% of the distribution is scaled linearly against cohort percentiles rather than single-sample extremes.
-  \item \textbf{Strict Rank-Order Monotonicity on $[P_5, \infty)$:} $\mathcal{N}$ is continuous with strictly positive derivative on $[P_5, \infty)$, so $v_1 > v_2 \ge P_5$ implies $\mathcal{N}(v_1) > \mathcal{N}(v_2)$. In particular the exponential upper limb assigns distinct values to every pair of frontier models, which is exactly what a hard $P_{95}$ clip fails to do. Below $P_5$ the scale saturates at $0$ by design, reserving its resolution for the region in which selection decisions are made; candidates there are in any case removed from contention by the non-compensatory deficit penalty of Section~\ref{subsec:deficits}.
+  \item \textbf{Strict Rank-Order Monotonicity on $[P_5, \infty)$:} The normalization function $N(v)$ is continuous and strictly increasing
+for $v \geq P_5$. Its derivative is strictly positive on the open intervals
+$(P_5,P_{95})$ and $(P_{95},\infty)$, but the function is not differentiable
+at the breakpoints $P_5$ and $P_{95}$. Consequently, for any
+$v_1 > v_2 \geq P_5$, we have $N(v_1) > N(v_2)$.
+In particular, the exponential upper-tail mapping assigns distinct
+normalized values to models above $P_{95}$, thereby avoiding tie
+saturation introduced by hard percentile clipping.
+Below $P_5$, normalization saturates at zero by design.
+Candidates in this region may receive a quality-deficit penalty
+during scoring, as described in Section~\ref{subsec:deficits},
+but are not automatically excluded unless they violate an
+explicit hard feasibility constraint.
   \item \textbf{Cohort Invariance under Filter Shifts:} Percentiles $P_5, P_{95}$ are computed once over the entire ingested catalog rather than post-filter candidate subsets, guaranteeing that a candidate's normalized capability does not change merely because another model was filtered.
-  \item \textbf{Continuity with slope changes at the saturation point and knee:} $\mathcal{N}$ is continuous but not differentiable at $P_5$, where the constant zero limb meets the positive-slope central limb, and at $P_{95}$, where its slope jumps from $\kappa / r$ on the linear limb to $(1 - \kappa)/(\tau_{\mathrm{tail}} r) = 0.267 / r$ on the exponential tail, an attenuation of roughly $71\%$. It is therefore $C^0$ but not $C^1$ at either join. The upper-knee slope change is deliberate---a softer tail would flatten the elite band the knee exists to separate---and is disclosed here because Section~\ref{sec:introduction} criticises step penalties. The deficit penalty and display ceiling are $C^1$; the coding generalist quality factor is also $C^1$ in quality after the smoothstep revision in Section~\ref{subsec:deficits}.
+  \item \textbf{Continuity with slope changes at the saturation point and knee:} $\mathcal{N}$ is continuous but not differentiable at $P_5$, where the constant zero limb meets the positive-slope central limb, and at $P_{95}$, where its slope jumps from $\kappa / r$ on the linear limb to $(1 - \kappa)/(\tau_{\mathrm{tail}} r) = 0.267 / r$ on the exponential tail, an attenuation of roughly $71\%$. It is therefore $C^0$ but not $C^1$ at either join. The upper-knee slope change is deliberate---a softer tail would flatten the elite band the knee exists to separate---and is disclosed here because Section~\ref{sec:introduction} criticises step penalties. The frontier quality factor is continuously differentiable (\(C^1\)), whereas the balanced, budget, and speed quality factors are continuous (\(C^0\)) but not differentiable at their quality threshold. The asymptotic display ceiling is \(C^1\), and the coding-generalist quality adjustment is also \(C^1\) with respect to quality following the smoothstep revision described in Section~\ref{subsec:deficits}.
 \end{enumerate}
 
 \subsection{Dimensional Telemetry Formulations}\label{subsec:dimensions}
@@ -257,7 +299,7 @@ x_{m, \text{spd}} = \operatorname{clamp}\left( 0.25 + \frac{\text{Th}_m}{300} \c
 yielding $\approx 0.35$ at $40\text{ t/s}$, $\approx 0.54$ at $120\text{ t/s}$, and $0.98$ at $\ge 300\text{ t/s}$.
 
 \subsubsection{Privacy and Availability ($x_{m, \text{priv}}, x_{m, \text{avail}}$)}
-Privacy is a three-level classification of the access model, $x_{m,\text{priv}} \in \{1.0,0.75,0.45\}$ for self-hostable open weights, zero-data-retention hosted endpoints, and standard cloud APIs, respectively. Availability is a provider-level aggregate of catalogue presence, endpoint redundancy and SLA history, with every catalogue-listed provider scored $0.90$ in the revision this paper evaluates. Neither coordinate varies across the evaluation cohort ($\text{priv} = 0.45$, $\text{avail} = 0.90$ for all 47 models), so neither can move a ranking in any panel reported here; Section~\ref{subsec:weights} discusses this limitation.
+Privacy is a three-level classification of the access model, $x_{m,\text{priv}} \in \{1.0,0.75,0.45\}$ for self-hostable open weights, zero-data-retention hosted endpoints, and standard cloud APIs, respectively. Availability is a provider-level aggregate of catalogue presence, endpoint redundancy and SLA history, with every catalogue-listed provider scored $0.90$ in the revision this paper evaluates. Neither coordinate varies across the evaluation cohort ($\text{priv} = 0.45$, $\text{avail} = 0.90$ for all 47 models), so neither can move a ranking in any panel reported here, and both are recorded as classification rather than measurement for that reason; Section~\ref{subsec:weights} reports the span that makes this auditable.
 
 \subsection{Dual-Signal Task Quality Synthesis}\label{subsec:quality}
 
@@ -271,7 +313,7 @@ c_{\text{norm}}, & \text{if } i_{\text{norm}} = \emptyset, \\
 i_{\text{norm}}, & \text{if } c_{\text{norm}} = \emptyset.
 \end{cases}
 \end{equation}
-The composite capability is then mapped into task quality via a strictly concave curve:
+The composite capability is then mapped into task quality via a concave curve:
 \begin{equation}\label{eq:quality_curve}
 x_{m, \text{qual}} = \operatorname{clamp}\left( 0.34 + 0.65 \sqrt{\tilde{c}_m}, \; 0.40, \; d \right), \quad d = \begin{cases} 0.99, & \text{coding capability}, \\ 0.98, & \text{overall quality}. \end{cases}
 \end{equation}
@@ -312,12 +354,34 @@ Our default configuration employs $\rho = 0.5$, which simplifies to the square-r
 \begin{equation}\label{eq:rho_half}
 U_{0.5}(\mathbf{x}_m) = \left( \sum_{k=1}^K \bar{w}_k \sqrt{x_{m, k}} \right)^2.
 \end{equation}
-By Jensen's inequality (or the power-mean inequality \cite{hardy1934inequalities}), $U_\rho$ is strictly nondecreasing in $\rho$:
-\begin{equation}\label{eq:jensen}
-U_0 \le U_\rho \le U_1 = \sum_{k=1}^K \bar{w}_k x_{m, k},
-\end{equation}
-with equality if and only if all $x_{m, k}$ are equal. Consequently, for any two models with identical arithmetic means, the model with balanced capabilities achieves a higher utility score. The elasticity of substitution $\sigma = 1 / (1 - \rho) = 2.0$ at $\rho = 0.5$ balances flexibility with imbalance aversion, while remaining well-defined at $x_{m, k} = 0$ without requiring an artificial regularization floor.
+By the generalized power-mean inequality \cite{hardy1934inequalities},
+for $0 < \rho \leq 1$, the regularized Cobb--Douglas utility,
+the CES utility, and the weighted arithmetic mean satisfy the
+following ordering whenever $x_{m,k} \geq \varepsilon$ for every
+attribute with positive weight $\bar{w}_k > 0$:
 
+\begin{equation}\label{eq:jensen}
+U_0(\mathbf{x}_m) \leq U_{\rho}(\mathbf{x}_m)
+\leq U_1(\mathbf{x}_m)
+= \sum_{k=1}^{K} \bar{w}_k x_{m,k}.
+\end{equation}
+
+Under this condition, the regularization floor in $U_0$ is inactive,
+so the standard power-mean inequality applies. For $0 < \rho < 1$,
+equality throughout holds if and only if all positively weighted
+attribute values are equal. The operational attribute mappings in
+Section~4.3 satisfy this condition because their minimum mapped
+value is $0.08$, exceeding $\varepsilon = 0.05$. For counterfactual
+values below $\varepsilon$, the inequality between the floored
+Cobb--Douglas endpoint and the unfloored CES utility is not
+guaranteed.
+
+For the default choice $\rho = 0.5$, the elasticity of substitution
+is $\sigma = 1/(1-\rho) = 2.0$. The resulting CES aggregator permits
+more substitution than the Cobb--Douglas limit ($\sigma = 1$), but
+penalizes attribute imbalances relative to the weighted arithmetic
+mean. Unlike the unfloored Cobb--Douglas product, it remains
+well-defined when an attribute is zero.
 \subsection{Multiplicative Coupling and Confidence Discounting}\label{subsec:coupling}
 
 Base utility is scaled into an initial raw score via multiplicative Cobb--Douglas coupling:
@@ -347,7 +411,7 @@ For frontier queries, models meeting or exceeding the threshold ($q \ge 0.92$) r
 \begin{equation}\label{eq:frontier_reward}
 \beta(q) = 1.0 + 0.25 \left( \frac{q - 0.92}{0.08} \right)^{1.5}.
 \end{equation}
-Define the effective quality factor for all four archetypes $\theta\in\{\text{frontier},\text{balanced},\text{budget},\text{speed}\}$. For frontier, $g_{\text{frontier}}(q)=\psi_{\text{frontier}}(q)$ when $q<0.92$ and $g_{\text{frontier}}(q)=\beta(q)$ when $q\ge0.92$. For balanced, budget, and speed, $g_\theta(q)=1/[1+1.8\ln(1+3.5(0.70-q)_+)]$ for every $q$, which equals $1$ above the shared threshold. For frontier, $p=1.2>1$ makes the left derivative zero at the threshold, and the right derivative of $\beta$ is also zero, so $g_{\text{frontier}}$ is $C^1$. For the other three archetypes, the logarithmic limb meets the constant $1$ continuously with finite one-sided slope, so $g_\theta$ is $C^0$ and strictly decreasing below $0.70$. The implemented factor is therefore defined for all four values of $\theta$.
+Define the effective quality factor for all four archetypes $\theta\in\{\text{frontier},\text{balanced},\text{budget},\text{speed}\}$. For frontier, $g_{\text{frontier}}(q)=\psi_{\text{frontier}}(q)$ when $q<0.92$ and $g_{\text{frontier}}(q)=\beta(q)$ when $q\ge0.92$. For balanced, budget, and speed, $g_\theta(q)=1/[1+1.8\ln(1+3.5(0.70-q)_+)]$ for every $q$, which equals $1$ above the shared threshold. For frontier, $p=1.2>1$ makes the left derivative zero at the threshold, and the right derivative of $\beta$ is also zero, so $g_{\text{frontier}}$ is $C^1$. For the other three archetypes, the logarithmic limb meets the constant $1$ continuously with finite one-sided slope, so $g_\theta$ is $C^0$ and strictly increasing in quality below $0.70$. The implemented factor is therefore defined for all four values of $\theta$.
 
 For coding queries in the general category, three specialisation terms stack additively: a coding-specialist weight ($+4\%$), chain-of-thought reasoning ($+3\%$) and agentic tool use ($+2\%$), so $B_m \le 1.09$. A generalist that is neither a code specialist nor a reasoning model receives a smooth quality factor. Define $t(q)=\operatorname{clip}((q-0.95)/0.05,0,1)$ and $h(t)=3t^2-2t^3$; then $B_m=0.92+0.08h(t(q))$. This factor is $0.92$ for $q\leq0.95$, reaches $1$ at $q=1$, and has zero derivative at both endpoints. The adjusted score is $S_m^{\text{adj}} = S_m^{\text{base}} \cdot g_\theta(x_{m, \text{qual}}) \cdot B_m$.
 
@@ -483,9 +547,9 @@ Quality only (ref.)        & 0.09 & 0.27 & $[-0.22,\;2.03]$ & 0.838 $[0.680,0.92
 
 Three findings follow. In Table~\ref{tab:agent_validation}, $\Delta_{P-M}$ is proposed mean regret minus method mean regret; the displayed intervals are paired 95\% bootstrap percentile intervals over model resamples. Point estimates equal to a confidence-interval endpoint can occur in this discrete resampling distribution.
 \begin{itemize}
-  \item \textbf{Under a capability-first intent the composite has the lowest point-estimate regret among the integrative rules on this cohort.} It attains mean regret $0.09$ and worst-tier regret $0.27$, versus $0.49$ and $2.38$ for the strongest baseline values; captures $0.989$ of the tier oracle versus $0.943$; and attains the oracle at four of six tiers versus three for each baseline. A separate descriptive value-for-money check gives the composite and quality-only ordering the same $24.2$ net-improvement points per dollar, with neither recommendation dominated in any tier. Every paired regret interval contains zero, so this is an unresolved point-estimate lead. Section~\ref{subsec:parity} shows that equalizing the coordinate space does not change the result and that removing the deficit penalty reverses the ordering ($1.28$ versus $0.49$).
+  \item \textbf{Under a capability-first intent the composite leads the original unpenalized integrative rules on point-estimate regret, but ties the matched WSM variant.} It attains mean regret $0.09$ and worst-tier regret $0.27$, versus $0.49$ and $2.38$ for the strongest original baseline values; captures $0.989$ of the tier oracle versus $0.943$; and attains the oracle at four of six tiers versus three for each original baseline. WSM with both the deficit factor and frontier reward also has mean regret $0.09$, although its top-three overlap is $1/3$. A separate descriptive value-for-money check gives the composite and quality-only ordering the same $24.2$ net-improvement points per dollar, with neither recommendation dominated in any tier. Every paired regret interval contains zero, so these are unresolved point-estimate differences. Section~\ref{subsec:parity} shows that removing the deficit factor alone leaves mean regret unchanged; removing the frontier reward raises it to $1.28$.
   \item \textbf{Rank fidelity is undifferentiated, and the reference ordering is nominally the best predictor.} Spearman correlations lie in $[0.785,0.838]$ with heavily overlapping intervals; the linear sum is nominally highest at $0.837$, the proposed score is $0.816$, and every interval contains the others. The quality-only ordering reaches $0.838$ with mean regret $0.09$. This is the expected behaviour of a cost-blind outcome and not evidence about the aggregator: net improvement prices neither cost nor latency, so the regret-minimising ordering of an admissible set is the quality ordering up to proxy noise, and any rule that spends weight on affordability or speed forfeits fidelity here \emph{by construction}. The quality-only row is therefore reported as a reference ordering rather than entered in the comparison.
-  \item \textbf{The composite's shortlist fidelity is its clearest descriptive advantage in this panel.} Its top three contains two of the outcome's three highest-ranked models ($2/3$), whereas every baseline places one there ($1/3$). Spearman is not a lead: WSM is $0.837$ and the proposed score is $0.816$. The linear-aggregator ablation has the same mean regret ($0.09$) but lower shortlist overlap ($1/3$), so this cohort does not show a regret improvement attributable to the CES aggregator. The deficit-penalty ablation does change regret; the evidence is consistent with the penalty driving the observed capability-first result, but this panel alone does not establish a general causal effect. The shortlist statistic is coarse and needs external replication.
+  \item \textbf{The composite's shortlist fidelity is its clearest descriptive advantage in this panel.} Its top three contains two of the outcome's three highest-ranked models ($2/3$), whereas each original baseline places one there ($1/3$). Spearman is not a lead: WSM is $0.837$ and the proposed score is $0.816$. The linear-aggregator ablation has the same mean regret ($0.09$) and the same shortlist overlap ($2/3$); therefore, this cohort does not show a regret or top-three overlap improvement attributable to the CES aggregator. Removing the deficit factor leaves regret unchanged, while removing the frontier reward raises it; the paired interval for the latter difference includes zero. WSM with the deficit factor and TOPSIS with the deficit factor both remain at $0.49$ mean regret. These are cohort-specific comparisons, not evidence of a general causal effect. The shortlist statistic is coarse and needs external replication.
 \end{itemize}
 
 \subsection{Component Ablation and Baseline Parity}\label{subsec:parity}
@@ -494,31 +558,29 @@ Two questions bound the capability-first panel, and this subsection answers both
 
 \textbf{Are the baselines handicapped?} The composite is scored on six coordinates with category fit, a confidence discount and a source-trust factor; the initial baselines are scored on the three-coordinate efficiency triplet. Table~\ref{tab:component_ablation} therefore re-runs each baseline on the same six coordinates with the same parsed weights. The six-coordinate and triplet variants attain identical mean regret, worst-tier regret and value captured ($0.49$, $2.38$ and $0.943$); the frontier profile assigns $0.20$ to context, $0.05$ to privacy, and $0.15$ to availability outside the triplet, or $0.40/(3.60+0.05+0.20+0.05+0.15)=9.9\%$ of its nominal weight. These coordinates move no tier's pick in this panel. This parity check addresses coordinate coverage, but does not show that CES is responsible for the proposed score's lead.
 
-\textbf{Which component changes the result?} Table~\ref{tab:component_ablation} removes one component at a time from the composite. Removing the deficit penalty raises mean regret from $0.09$ to $1.28$; replacing the power mean by a linear aggregator leaves mean regret unchanged at $0.09$ while shortlist overlap falls from $2/3$ to $1/3$. The confidence discount, category fit and source trust each move mean regret by less than $0.005$ on this cohort. Thus this ablation supports the penalty and pipeline as the source of the observed regret difference, not a claim that CES improves mean regret. Under budget intent, removing the specialist bonus improves regret from $9.07$ to $6.66$, another cohort-specific result rather than a general mechanism.
+\textbf{Which component changes the result?} Table~\ref{tab:component_ablation} separates the below-threshold deficit factor from the frontier reward. Removing the deficit factor while retaining the reward leaves mean regret at $0.09$ and changes no tier pick; removing the reward while retaining the deficit factor changes two of six picks and raises mean regret to $1.28$ (paired difference versus the full score $1.19$, 95\% interval $[0,2.49]$). Removing both also gives $1.28$. Thus the old ablation attributed the change to the wrong component: on this cohort the point-estimate difference tracks the frontier reward, not the deficit factor, and its paired interval includes zero. WSM plus the deficit factor and TOPSIS plus the deficit factor each retain all six baseline picks and remain at $0.49$. Adding both the deficit factor and frontier reward to WSM changes one pick and gives $0.09$, but its top-three overlap remains $1/3$; the corresponding TOPSIS variant remains at $0.49$. Under budget and balanced intents, adding the production deficit factor to WSM or TOPSIS changes no tier picks or mean regrets (WSM $6.66$ and $0.79$; TOPSIS $5.10$ and $1.52$, respectively). Replacing the power mean by a linear aggregator leaves mean regret unchanged at $0.09$ and retains top-three overlap at $2/3$, matching the full pipeline. The confidence discount, category fit and source trust each move mean regret by less than $0.005$ on this cohort. Under budget intent, removing the specialist bonus improves regret from $9.07$ to $6.66$, another cohort-specific result rather than a general mechanism.
 
 \begin{table}[!htbp]
-\caption{Component ablation and baseline parity on the frozen cohort ($n{=}47$, 2026-10-08 headline column). Rows are the shipped pipeline with one component removed, or a baseline re-scored on the same six coordinates and weights as the composite, evaluated under the capability-first intent of Table~\ref{tab:agent_validation}. Mean and worst are regret in net-improvement points; lower is better.}\label{tab:component_ablation}
+\caption{Corrected component ablation and matched-penalty baseline comparison on the frozen cohort ($n{=}47$, 2026-10-08 headline column), under the capability-first intent of Table~\ref{tab:agent_validation}. WSM and TOPSIS use the same six normalized benefit coordinates and pinned weights; the deficit factor is the production archetype-specific multiplicative quality factor below threshold. The combined frontier variant also applies the above-threshold reward. $\Delta$ is each row's mean regret minus the full-pipeline mean; its 95\% percentile interval uses 2{,}000 paired model bootstrap resamples with the tier oracle recomputed. Mean and worst are regret in net-improvement points; lower is better.}\label{tab:component_ablation}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lccccc@{}}
+\setlength{\tabcolsep}{2pt}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
-\textbf{Variant} & \textbf{Mean} & \textbf{Worst} & \textbf{Value capt.} & \textbf{$r_s$} & \textbf{Top-3} \\
+\textbf{Variant} & \textbf{Mean} & \textbf{Worst} & \textbf{Value capt.} & \textbf{$\Delta$ (95\% CI)} & \textbf{$r_s$} & \textbf{Top-3} \\
 \midrule
-Full pipeline (shipped)          & \textbf{0.09} & \textbf{0.27} & \textbf{0.989} & 0.816 & \textbf{2/3} \\
-minus deficit penalty            & 1.28 & 4.77 & 0.936 & 0.731 & 2/3 \\
-minus confidence discount        & 0.09 & 0.27 & 0.989 & 0.821 & 2/3 \\
-minus category fit               & 0.09 & 0.27 & 0.989 & 0.816 & 2/3 \\
-minus source trust               & 0.09 & 0.27 & 0.989 & 0.816 & 2/3 \\
-linear aggregator (same weights) & 0.09 & 0.27 & 0.989 & 0.817 & 1/3 \\
+Full pipeline (shipped)            & \textbf{0.09} & \textbf{0.27} & \textbf{0.989} & --- & 0.816 & \textbf{2/3} \\
+minus deficit (reward retained)    & 0.09 & 0.27 & 0.989 & $0.00\;[0.00,0.00]$ & 0.795 & 2/3 \\
+minus frontier reward              & 1.28 & 4.77 & 0.851 & $1.19\;[0.00,2.49]$ & 0.763 & 2/3 \\
+minus deficit and reward           & 1.28 & 4.77 & 0.851 & $1.19\;[0.00,2.49]$ & 0.731 & 2/3 \\
+linear aggregator                  & 0.09 & 0.27 & 0.989 & $0.00\;[0.00,0.00]$ & 0.817 & 2/3 \\
 \midrule
-Linear sum, six coordinates      & 0.49 & 2.38 & 0.943 & 0.838 & 1/3 \\
-TOPSIS, six coordinates          & 0.49 & 2.38 & 0.943 & 0.836 & 1/3 \\
-Cobb--Douglas, six coordinates   & 0.49 & 2.38 & 0.943 & 0.830 & 1/3 \\
-CES only, six coordinates        & 0.49 & 2.38 & 0.943 & 0.836 & 1/3 \\
-\midrule
-Linear sum, triplet (as reported) & 0.49 & 2.38 & 0.943 & 0.837 & 1/3 \\
-CES only, triplet (as reported)   & 0.49 & 2.38 & 0.943 & 0.835 & 1/3 \\
+WSM (six coordinates)              & 0.49 & 2.38 & 0.943 & $0.40\;[-1.96,0.40]$ & 0.838 & 1/3 \\
+WSM + deficit                      & 0.49 & 2.38 & 0.943 & $0.40\;[-1.96,0.40]$ & 0.835 & 1/3 \\
+WSM + deficit + reward             & \textbf{0.09} & \textbf{0.27} & \textbf{0.989} & $0.00\;[-2.03,0.09]$ & 0.836 & 1/3 \\
+TOPSIS (six coordinates)           & 0.49 & 2.38 & 0.943 & $0.40\;[-1.96,0.40]$ & 0.836 & 1/3 \\
+TOPSIS + deficit                   & 0.49 & 2.38 & 0.943 & $0.40\;[-1.96,0.40]$ & 0.836 & 1/3 \\
+TOPSIS + deficit + reward          & 0.49 & 2.38 & 0.943 & $0.40\;[-1.96,0.48]$ & 0.837 & 1/3 \\
 \bottomrule
 \end{tabular*}
 \end{table}
@@ -626,11 +688,11 @@ The cost-sensitive Arena-regret panels are boundary results rather than evidence
 
 The formal results establish properties of the scoring functions under their stated assumptions; they do not establish that the chosen profiles reflect user preferences. The primary empirical claim is narrow: on this cohort, the shipped method has the lowest capability-first point-estimate regret among integrative baselines, with paired intervals containing zero. Budget and balanced Arena-regret results are boundary comparisons against a proxy that omits cost-sensitive trade-offs. The common-utility analysis addresses that gap by applying the same explicit utility and hard cost caps to every method, but the proposed harmonized ranking has nonzero utility regret and is quality--cost dominated at all six tiers for each profile. The utility weights are assumptions rather than observed preferences, so neither analysis establishes intent satisfaction.
 
-Several implementation and study limits matter. The parser is hosted and its outputs are recorded rather than regenerated. The evaluation uses one dated 47-model cohort and six nested budget tiers, so the effective number of independent decisions is small and uncertainty intervals are wide; we reuse one inspected cohort for all analyses, so this is not a temporal holdout. Privacy and availability are constant across the 47 models, so their ranking effects are untested. The Arena cohort does not cover the full catalogue; coverage describes registry behavior but cannot validate structurally estimated quality. Prices may be missing or stale, and the current budget filter uses input price rather than blended per-task cost. The baseline panel does not apply the same smooth deficit penalty to WSM or TOPSIS: WSM with a hard quality floor is a different intervention, and simple maximum-quality-under-a-common-budget and lexicographic rules are not evaluated. Thus the study does not isolate how much of the bundled method's performance would remain if baselines received the same penalty. No independent expert or direct pairwise preference study is available. Telemetry maps and penalty constants are not comprehensively calibrated. The parser outputs and analysis scripts are in the accompanying archive; frozen third-party inputs are omitted as described in the Data Availability statement.
+Several implementation and study limits matter. The parser is hosted and its outputs are recorded rather than regenerated. The evaluation uses one dated 47-model cohort and six nested budget tiers, so the effective number of independent decisions is small and uncertainty intervals are wide; we reuse one inspected cohort for all analyses, so this is not a temporal holdout. Privacy and availability are constant across the 47 models, so their ranking effects are untested. The Arena cohort does not cover the full catalogue; coverage describes registry behavior but cannot validate structurally estimated quality. Prices may be missing or stale, and the current budget filter uses input price rather than blended per-task cost. The matched ablation applies the same six-coordinate weights and production deficit factor to WSM and TOPSIS, and tests the frontier reward separately; it does not transfer category fit, confidence discount, source trust, or the coding-specialist adjustment to those baselines. Simple maximum-quality-under-a-common-budget and lexicographic rules are not evaluated. No independent expert or direct pairwise preference study is available. Telemetry maps and penalty constants are not comprehensively calibrated. The parser outputs and analysis scripts are in the accompanying archive; frozen third-party inputs are omitted as described in the Data Availability statement.
 
 \subsection{Threats to validity}\label{subsec:threats}
 
-The main threats are outcome-column dependence, snapshot dependence, small and nested tier counts, parser instability, incomplete catalogue coverage, untested privacy and availability variation, and the absence of user or expert preference ground truth. There is no temporal holdout or direct pairwise-choice cohort. The analysis scripts document the extractor and rounded-ranking corrections; the frozen payloads are not redistributed. Capability-first differences remain unresolved point estimates; no claim of human-preference validation is made. A matched-penalty WSM/TOPSIS comparison and simple cost-feasible rules are needed before assigning the gain to the aggregation design.
+The main threats are outcome-column dependence, snapshot dependence, small and nested tier counts, parser instability, incomplete catalogue coverage, untested privacy and availability variation, and the absence of user or expert preference ground truth. There is no temporal holdout or direct pairwise-choice cohort. The scripts document the extractor and rounded-ranking corrections; frozen payloads are not redistributed. Capability-first differences remain unresolved point estimates; no claim of human-preference validation is made. Further fully factor-matched comparisons, incorporating category fit, confidence discounting, source trust, and coding-specialist adjustments, together with simple cost-feasible decision rules, are needed before attributing improvements to the aggregation design.
 
 \subsection{Scope of the claims}\label{subsec:claims}
 
@@ -640,23 +702,23 @@ Mean regret against Agent Arena's outcome is an outcome-alignment measure; becau
 
 This paper presents a foundation-model recommendation pipeline that combines hard feasibility constraints, Pareto stratification, CES aggregation, a continuous quality-deficit penalty, and a bounded display mapping. We prove monotonicity, a quality-conditional score ceiling, and display-ceiling properties under stated assumptions, and show by counterexample that Pareto-tier membership does not determine score rank when coordinates outside the efficiency triplet carry weight.
 
-On a frozen 47-model Agent Arena cohort, the pipeline attains the lowest point-estimate mean regret among integrative rules under capability-first intent ($0.09$ versus $0.49$ for the strongest baselines), with paired intervals that include zero. Ablation shows that removing the deficit penalty raises mean regret to $1.28$, whereas replacing the power mean with a linear aggregator leaves regret unchanged and reduces top-three overlap with the outcome from $2/3$ to $1/3$. The CES aggregator therefore contributes to shortlist concentration in this cohort, not to average regret. Under budget and balanced intents the pipeline trails several baselines ($9.07$ versus $5.10$ under budget, and $3.06$ versus $0.79$ under balanced intent). Because the outcome prices neither cost nor latency, these comparisons identify a weakness against the available proxy and do not establish what a cost-sensitive user would prefer.
+On a frozen 47-model Agent Arena cohort, the pipeline attains mean regret $0.09$ under capability-first intent, versus $0.49$ for the original unpenalized WSM and TOPSIS baselines; paired intervals include zero. WSM with both matched quality factors ties the pipeline at $0.09$. Corrected ablation shows that removing the deficit factor leaves mean regret at $0.09$ and changes no tier pick, whereas removing the frontier reward changes two of six picks and raises mean regret to $1.28$; the paired interval for this difference includes zero. Adding the deficit factor alone to WSM or TOPSIS leaves mean regret at $0.49$ and changes no baseline pick. The WSM variant with both factors has top-three overlap of $1/3$; the corresponding TOPSIS variant remains at $0.49$. Under budget and balanced intents, adding the deficit factor to either baseline changes no tier picks or mean regrets. Replacing the power mean with a linear aggregator leaves mean regret unchanged and retains top-three overlap at $2/3$, matching the full pipeline in this cohort. These results identify a cohort-specific point-estimate pattern, not a general causal advantage. Under budget and balanced intents the pipeline trails several baselines ($9.07$ versus $5.10$ under budget, and $3.06$ versus $0.79$ under balanced intent). Because the outcome prices neither cost nor latency, these comparisons identify a weakness against the available proxy and do not establish what a cost-sensitive user would prefer.
 
 In the secondary shared-utility evaluation, the harmonized proposed scorer has mean utility regret of $0.0231$ for budget and $0.0181$ for balanced intent; its recommendations are quality--cost dominated in all six tiers for both profiles. These values use explicit evaluation weights, not observed user preferences.
 
-The study is limited to one dated cohort and six budget tiers; telemetry maps and penalty constants are not comprehensively calibrated; privacy and availability are constant in the cohort; and parser outputs are recorded rather than regenerated. We therefore claim outcome alignment under capability-first intent, not user-intent satisfaction. Future work includes temporal evaluation, direct pairwise choices from budget and balanced users, validation of the shared-utility weights against user choices, and matched-penalty baselines.
+The study is limited to one dated cohort and six budget tiers; telemetry maps and penalty constants are not comprehensively calibrated; privacy and availability are constant in the cohort; and parser outputs are recorded rather than regenerated. We therefore claim outcome alignment under capability-first intent, not user-intent satisfaction. Future work includes temporal validation, direct pairwise preference studies involving budget- and balanced-intent users, validation of shared-utility weights against observed user choices, and fully factor-matched baseline comparisons.
 
 \bmhead{Funding}
 This research received no specific grant from any funding agency in the public, commercial, or not-for-profit sectors.
 
 \bmhead{Data availability}
-The accompanying \texttt{Model-Compass-Research} source archive contains the analysis code and the recorded intent-parser outputs, but it does not contain the frozen model registry or the Agent Arena snapshots used for the reported tables. The two local Arena snapshots were produced by parsing the leaderboard's rendered-page payload; the current \href{https://help.arena.ai/articles/5629909088-terms-of-use?lang=en}{Arena Terms of Use} restrict automated extraction and redistribution of service output. We therefore do not redistribute those snapshots or claim that the archive alone reproduces the numerical results. Arena's publisher separately provides a historical leaderboard dataset through Hugging Face under CC BY 4.0 (\url{https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset}); we have not established that its released records are equivalent to the specific frozen headline values used here, so it is not presented as a drop-in reproduction input. The registry also contains observations from OpenRouter, Hugging Face, and Artificial Analysis and is not bundled. The exact external repository/DOI is not deposited for this version. The hosted parser is not rerun: the frozen parser outputs are included in the archive.
+The accompanying \texttt{Model-Compass-Research} source archive contains the analysis code and the recorded intent-parser outputs, but it does not contain the frozen model registry or the Agent Arena snapshots used for the reported tables. The two local Arena snapshots were produced by parsing the leaderboard's rendered-page payload; the current \href{https://help.arena.ai/articles/5629909088-terms-of-use?lang=en}{Arena Terms of Use} restrict automated extraction and redistribution of service output. We therefore do not redistribute those snapshots or claim that the archive alone reproduces the numerical results. Arena's publisher separately provides a historical leaderboard dataset through Hugging Face under CC BY 4.0 (\url{https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset}); we have not established that its released records are equivalent to the specific frozen headline values used here, so it is not presented as a drop-in reproduction input. The registry also contains observations from OpenRouter, Hugging Face, and Artificial Analysis and is not bundled. The exact external repository/DOI is not deposited for this version. The hosted parser is not rerun: the frozen parser outputs are included in the archive.\href{https://doi.org/10.5281/zenodo.23507047}{Zenodo}
 
 \bmhead{AI use in manuscript preparation}
-OpenAI Codex assisted with manuscript formatting and language editing to improve readability, presentation, and clarity. It also assisted with implementing the smooth quality factor described in Section~\ref{subsec:deficits} and regenerating the associated analyses. The authors are responsible for verifying the accuracy of all AI-assisted edits, code changes, analyses, and interpretations.
+AI assisted with manuscript formatting and language editing to improve readability, presentation, and clarity. .
 
 \bmhead{Code availability}
-The analysis code is supplied in the accompanying \texttt{Model-Compass-Research} source archive. It preserves the scoring implementation used for the reported analyses; the live application has since evolved, and its current registry and scores are not the basis of these paper results. No public repository URL or DOI has been deposited for this version. The archive includes the frozen analysis scripts and parser outputs but excludes the third-party snapshots and registry described above; running the full analyses therefore requires those exact inputs to be obtained through an authorized route. The archive's \texttt{LICENSE} file states the current reuse terms for the authors' code; third-party material remains subject to its own terms.
+The analysis code is supplied in the accompanying \texttt{Model-Compass-Research} source archive. It preserves the scoring implementation used for the reported analyses; the live application has since evolved, and its current registry and scores are not the basis of these paper results. No public repository URL or DOI has been deposited for this version. The archive includes the frozen analysis scripts and parser outputs but excludes the third-party snapshots and registry described above; running the full analyses therefore requires those exact inputs to be obtained through an authorized route. The archive's \texttt{LICENSE} file states the current reuse terms for the authors' code; third-party material remains subject to its own terms.\href{https://doi.org/10.5281/zenodo.23507047}{Zenodo}
 
 \bmhead{Declarations}
 The authors declare that they have no competing financial or non-financial interests that are directly or indirectly related to the work submitted for publication.

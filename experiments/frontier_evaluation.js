@@ -1,7 +1,7 @@
 /**
  * Corrected Agent Arena cohort study.
  *
- * Bug fixed here: the original extractor (scratch/extract_arena_full.py) matched
+ * Bug fixed here: the initial extractor matched
  * the payload key order `"isPublic":true,"score":...`, which occurs only inside
  * `snapshot.signals[].entries[]`.  The first signal is `task_outcome_explicit`,
  * displayed as **Confirmed Success**, so every figure in the paper's validation
@@ -22,7 +22,7 @@
  *                           mean regret and r_s (Remark: regret claims lacked
  *                           intervals and rested on a single cohort)
  *
- * Run: node scratch/arena_corrected.js
+ * Run from the archive root: node experiments/frontier_evaluation.js
  */
 import '../src/engine/env.js'
 import { readRegistry } from '../src/engine/registry-store.js'

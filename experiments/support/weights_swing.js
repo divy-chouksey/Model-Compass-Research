@@ -16,7 +16,7 @@
  *                        of swing; then renormalised to sum to 1
  * and how much the resulting ranking differs from the nominal-weight ranking.
  *
- * Run: node scratch/weights_swing.js
+ * Run from the archive root: node experiments/support/weights_swing.js
  */
 import '../../src/engine/env.js'
 import { readRegistry } from '../../src/engine/registry-store.js'

@@ -22,6 +22,6 @@
       "description": "Fallback registry seed required only if model-registry.json is absent; it does not replace the paper's frozen registry."
     }
   ],
-  "parserInputs": "Pinned parser outputs are included at experiments/support/intents.frozen.json and are not fetched at runtime.",
+  "parserInputs": "Pinned parser outputs consumed by the evaluation harnesses are included at experiments/intents.frozen.json and are not fetched at runtime.",
   "provenance": "Every input must be accompanied by its source, retrieval date, license or terms, and SHA-256 digest before analysis."
 }

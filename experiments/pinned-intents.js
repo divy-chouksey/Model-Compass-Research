@@ -4,10 +4,10 @@
  * The intent parser is a hosted instruction-tuned model (Section "Intent-Parser
  * Evaluation" of the paper), so the pipeline is NOT reproducible end to end from
  * source: without the same credentials and the same provider revision the parser
- * returns different weight vectors, and the two panels that price cost move with
- * those weights. Every number in the paper is nevertheless reproducible, because
- * the parser's output enters the pipeline as a weight vector and those vectors
- * are recorded here exactly as the analysis captured them.
+ * returns different weight vectors, and the panels that price cost move with
+ * those weights. The parser's contribution is reproducible from the vectors
+ * recorded here; regenerating the paper's empirical results also requires the
+ * frozen registry and leaderboard inputs listed in data/data_schema.json.
  *
  * `intents.frozen.json` holds the full `analysis` object the shipped parser
  * returned for each prompt on the frozen revision. The harnesses call

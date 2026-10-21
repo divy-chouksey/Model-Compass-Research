@@ -4,10 +4,11 @@
  * Responds to the review points that (a) the baselines are handicapped because
  * they are scored on the three-coordinate efficiency triplet while the proposed
  * score uses six coordinates plus category fit, confidence and trust, and
- * (b) no component-level ablation of the proposed pipeline is reported.
+ * (b) the prior ablation conflated the below-threshold deficit factor with
+ *     the above-threshold frontier reward.
  *
  * Frozen state: the registry revision and the 2026-10-08 headline payload used
- * by scratch/arena_corrected.js, so the "Full pipeline" row here is comparable
+ * by experiments/frontier_evaluation.js, so the "Full pipeline" row here is comparable
  * to the Proposed row of the manuscript's validation table.
  *
  * The proposed-score ablations separate the below-threshold deficit multiplier
@@ -110,7 +111,7 @@ function score(model, targetCategory, weights, opts, off = {}) {
   return off.ceiling ? Math.max(1, scaled) : Math.max(1, softCeiling(scaled))
 }
 
-// ── cohort (identical to scratch/arena_corrected.js) ────────────────────────
+// ── cohort (identical to experiments/frontier_evaluation.js) ────────────────
 const reg = await readRegistry()
 const bounds = computeBenchmarkBounds(reg.models)
 const regIdx = new Map()
@@ -167,7 +168,6 @@ console.log(`FROZEN cohort: ${cohort.length} models, ${priced.length} priced`)
 // Faithfulness check: the reimplementation with every component ON must agree
 // with the shipped computeFinalScore().exact to floating-point noise.
 {
-  const { recommendModels } = await import('../server/lib/scoring.js')
   let maxd = 0
   for (const prompt of Object.values(PROMPTS)) {
     const { analysis } = await pinnedIntent(prompt)
@@ -184,7 +184,6 @@ console.log(`FROZEN cohort: ${cohort.length} models, ${priced.length} priced`)
 }
 
 for (const [arch, prompt] of Object.entries(PROMPTS)) {
-  const { recommendModels } = await import('../server/lib/scoring.js')
   const { analysis } = await pinnedIntent(prompt)
   const w = analysis.weights, category = analysis.targetCategory
   const opts = { archetype: analysis.archetype, isCoding: Boolean(analysis.isCoding), qualityFlagged: analysis.archetype === 'frontier' }

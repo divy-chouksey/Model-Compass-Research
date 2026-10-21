@@ -204,4 +204,4 @@ for (const [intentName, intent] of Object.entries(INTENTS)) {
 }
 
 writeFileSync(new URL('./intent_utility_eval.json', import.meta.url), JSON.stringify(output, null, 2) + '\n')
-console.log('\nWrote artifact/scratch/intent_utility_eval.json')
+console.log('\nWrote experiments/intent_utility_eval.json')

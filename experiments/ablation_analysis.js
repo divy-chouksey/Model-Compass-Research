@@ -1,6 +1,6 @@
 /** Regenerate tab:ablation (raw pre-ceiling scores across CES exponents) and the
  *  ceiling-test endpoints from the shipped engine.
- *  Run: node scratch/regen_ablation.js */
+ *  Run from the archive root: node experiments/ablation_analysis.js */
 import '../src/engine/env.js'
 import { readRegistry } from '../src/engine/registry-store.js'
 import { recommendModels, capabilityFit, sourceTrustFactor } from '../src/engine/scoring.js'

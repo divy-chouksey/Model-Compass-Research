@@ -252,16 +252,10 @@ function normalizeSpeed(tokensPerSecond) {
 //
 // Throughput alone cannot distinguish a model that streams quickly from one
 // that stalls before the first token, so TTFT is the more faithful latency
-// signal and the obvious candidate to add. It was implemented and measured
-// against the Agent Arena cohort study rather than shipped on plausibility:
-// combining throughput and TTFT with the aggregator's own rho = 0.5 power mean
-// moved the budget intent's mean regret from 5.10 to 10.55 and its
-// net-per-dollar from +29.8 (0/6 tiers dominated) to -20.67 (6/6), because the
-// two maps have different calibration and their mean silently shifts the level
-// of the dimension rather than only its ordering. An uncalibrated level shift
-// is exactly the failure this methodology exists to avoid, so the combination
-// was reverted. TTFT should be added when its normalisation can be calibrated
-// against a latency-priced reference, not against a cost-blind one.
+// signal and an obvious candidate for future inclusion. It is not part of the
+// speed coordinate reported in the paper. Adding it requires calibrated
+// normalization and latency-sensitive evaluation; combining it with
+// throughput ad hoc would change the scale as well as the rank order.
 
 /**
  * Dynamically evaluate all capabilities of a model.
